@@ -62,7 +62,7 @@ def main():
             psf = batch["psf"].to(device)
             target = batch["target"].to(device)
             pred = model(y, psf)
-            loss = (pred - target).abs().mean()
+            loss = (pred - target).abs().mean() + ((pred - target) ** 2).mean()
             opt.zero_grad()
             loss.backward()
             opt.step()
