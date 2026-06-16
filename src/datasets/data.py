@@ -7,14 +7,17 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
 
-def image_to_tensor(image, size):
+def image_to_tensor(image, size, rotate=False):
     if not isinstance(image, Image.Image):
         image = Image.open(image)
     image = image.convert("RGB")
     if size:
         image = image.resize((size, size))
     x = np.array(image).astype("float32") / 255
-    return torch.from_numpy(x).permute(2, 0, 1)
+    x = torch.from_numpy(x).permute(2, 0, 1)
+    if rotate:
+        x = torch.rot90(x, 2, (1, 2))
+    return x
 
 
 def psf_to_tensor(x, size):
@@ -57,7 +60,7 @@ class CustomDirDataset(Dataset):
 
     def __getitem__(self, i):
         name = self.ids[i]
-        lensless = image_to_tensor(self.find_image("lensless", name), self.size)
+        lensless = image_to_tensor(self.find_image("lensless", name), self.size, True)
         psf = psf_to_tensor(self.root / "masks" / f"{name}.npy", self.size)
         target_path = self.find_image("lensed", name)
         if target_path is None:
@@ -92,7 +95,7 @@ class HFDataset(Dataset):
             psf = default_psf(self.size)
         return {
             "id": str(row.get("id", i)),
-            "lensless": image_to_tensor(lensless, self.size),
+            "lensless": image_to_tensor(lensless, self.size, True),
             "target": image_to_tensor(target, self.size),
             "psf": psf if torch.is_tensor(psf) else psf_to_tensor(psf, self.size),
         }
