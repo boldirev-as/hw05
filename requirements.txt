@@ -1,0 +1,9 @@
+torch
+torchvision
+datasets
+pillow
+numpy
+tqdm
+comet_ml
+torchmetrics
+lpips
