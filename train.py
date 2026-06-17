@@ -21,6 +21,7 @@ def parse_args():
     p.add_argument("--steps", type=int, default=20)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--val-limit", type=int, default=128)
     p.add_argument("--comet", action="store_true")
     p.add_argument("--project", default="hw05")
     p.add_argument("--workspace", default=None)
@@ -47,8 +48,8 @@ def save_result(args, best, best_epoch):
     with path.open("a", newline="") as f:
         w = csv.writer(f)
         if not exists:
-            w.writerow(["name", "size", "batch", "epochs", "steps", "lr", "limit", "best_psnr", "best_epoch", "out"])
-        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.lr, args.limit, best, best_epoch, args.out])
+            w.writerow(["name", "size", "batch", "epochs", "steps", "lr", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
+        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.lr, args.limit, args.val_limit, best, best_epoch, args.out])
 
 
 def main():
@@ -57,9 +58,10 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     train_loader = make_loader(args.data, "train", args.size, args.batch, args.limit, True)
-    val_loader = make_loader(args.data, "test", args.size, 1, 64, False)
+    val_loader = make_loader(args.data, "test", args.size, 1, args.val_limit, False)
     model = Model(args.steps, True).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, args.epochs)
     run = Experiment(api_key=comet_key(), project_name=args.project, workspace=args.workspace) if args.comet else None
     if run:
         run.log_parameters(vars(args))
@@ -93,6 +95,7 @@ def main():
                 run.log_model("best", str(out / "best.pt"))
         torch.save(model.state_dict(), out / "last.pt")
         print(epoch, psnr)
+        scheduler.step()
     save_result(args, best, best_epoch)
     if run:
         run.log_metric("best_psnr", best)

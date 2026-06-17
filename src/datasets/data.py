@@ -67,15 +67,18 @@ class CustomDirDataset(Dataset):
             target = lensless
         else:
             target = image_to_tensor(target_path, self.size)
+        if self.train:
+            lensless, target = augment(lensless, target)
         return {"id": name, "lensless": lensless, "psf": psf, "target": target}
 
 
 class HFDataset(Dataset):
-    def __init__(self, split, size=256, limit=None):
+    def __init__(self, split, size=256, limit=None, train=False):
         self.data = load_dataset("bezzam/DigiCam-Mirflickr-MultiMask-10K", split=split)
         if limit:
             self.data = self.data.select(range(min(limit, len(self.data))))
         self.size = size
+        self.train = train
 
     def __len__(self):
         return len(self.data)
@@ -93,17 +96,31 @@ class HFDataset(Dataset):
         psf = self.pick(row, ["psf", "mask", "masks"])
         if psf is None:
             psf = default_psf(self.size)
+        lensless = image_to_tensor(lensless, self.size, True)
+        target = image_to_tensor(target, self.size)
+        if self.train:
+            lensless, target = augment(lensless, target)
         return {
             "id": str(row.get("id", i)),
-            "lensless": image_to_tensor(lensless, self.size, True),
-            "target": image_to_tensor(target, self.size),
+            "lensless": lensless,
+            "target": target,
             "psf": psf if torch.is_tensor(psf) else psf_to_tensor(psf, self.size),
         }
 
 
 def make_loader(path=None, split="train", size=256, batch_size=2, limit=None, shuffle=False):
     if path:
-        data = CustomDirDataset(path, size)
+        data = CustomDirDataset(path, size, shuffle)
     else:
-        data = HFDataset(split, size, limit)
+        data = HFDataset(split, size, limit, shuffle)
     return DataLoader(data, batch_size=batch_size, shuffle=shuffle, num_workers=2, pin_memory=True)
+
+
+def augment(lensless, target):
+    if torch.rand(()) < 0.5:
+        lensless = torch.flip(lensless, (2,))
+        target = torch.flip(target, (2,))
+    if torch.rand(()) < 0.5:
+        lensless = torch.flip(lensless, (1,))
+        target = torch.flip(target, (1,))
+    return lensless, target
