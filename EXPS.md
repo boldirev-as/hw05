@@ -8,4 +8,4 @@
 
 Next:
 
-`--epochs 50 --batch 8 --size 256 --lr 3e-4 --name unet256_lr3e4_repeat`
+`--epochs 50 --batch 8 --size 256 --lr 3e-4 --name residual_gn_aug`

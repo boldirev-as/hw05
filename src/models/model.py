@@ -8,11 +8,11 @@ class Block(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Conv2d(a, b, 3, padding=1),
-            nn.BatchNorm2d(b),
-            nn.ReLU(inplace=True),
+            nn.GroupNorm(8, b),
+            nn.SiLU(inplace=True),
             nn.Conv2d(b, b, 3, padding=1),
-            nn.BatchNorm2d(b),
-            nn.ReLU(inplace=True),
+            nn.GroupNorm(8, b),
+            nn.SiLU(inplace=True),
         )
 
     def forward(self, x):
@@ -22,14 +22,17 @@ class Block(nn.Module):
 class Model(nn.Module):
     def __init__(self, steps=20, learned=True):
         super().__init__()
-        self.e1 = Block(3, 32)
-        self.e2 = Block(32, 64)
-        self.e3 = Block(64, 128)
-        self.mid = Block(128, 256)
-        self.d3 = Block(256 + 128, 128)
-        self.d2 = Block(128 + 64, 64)
-        self.d1 = Block(64 + 32, 32)
-        self.out = nn.Conv2d(32, 3, 1)
+        c = 48
+        self.e1 = Block(3, c)
+        self.e2 = Block(c, c * 2)
+        self.e3 = Block(c * 2, c * 4)
+        self.mid = Block(c * 4, c * 8)
+        self.d3 = Block(c * 8 + c * 4, c * 4)
+        self.d2 = Block(c * 4 + c * 2, c * 2)
+        self.d1 = Block(c * 2 + c, c)
+        self.out = nn.Conv2d(c, 3, 1)
+        nn.init.zeros_(self.out.weight)
+        nn.init.zeros_(self.out.bias)
 
     def forward(self, y, psf):
         x1 = self.e1(y)
@@ -42,4 +45,4 @@ class Model(nn.Module):
         x = self.d2(torch.cat([x, x2], 1))
         x = F.interpolate(x, size=x1.shape[-2:], mode="bilinear", align_corners=False)
         x = self.d1(torch.cat([x, x1], 1))
-        return torch.sigmoid(self.out(x))
+        return (y + self.out(x)).clamp(0, 1)
