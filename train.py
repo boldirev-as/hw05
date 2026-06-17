@@ -1,4 +1,5 @@
 import argparse
+import csv
 import os
 from pathlib import Path
 
@@ -39,6 +40,17 @@ def comet_key():
         return None
 
 
+def save_result(args, best, best_epoch):
+    path = Path("runs") / "experiments.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    exists = path.exists()
+    with path.open("a", newline="") as f:
+        w = csv.writer(f)
+        if not exists:
+            w.writerow(["name", "size", "batch", "epochs", "steps", "lr", "limit", "best_psnr", "best_epoch", "out"])
+        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.lr, args.limit, best, best_epoch, args.out])
+
+
 def main():
     args = parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -54,6 +66,7 @@ def main():
         if args.name:
             run.set_name(args.name)
     best = 0
+    best_epoch = -1
     step = 0
     for epoch in range(args.epochs):
         model.train()
@@ -74,12 +87,16 @@ def main():
             run.log_metric("psnr", psnr, step=step, epoch=epoch)
         if psnr > best:
             best = psnr
+            best_epoch = epoch
             torch.save(model.state_dict(), out / "best.pt")
             if run:
                 run.log_model("best", str(out / "best.pt"))
         torch.save(model.state_dict(), out / "last.pt")
         print(epoch, psnr)
+    save_result(args, best, best_epoch)
     if run:
+        run.log_metric("best_psnr", best)
+        run.log_metric("best_epoch", best_epoch)
         run.end()
 
 
