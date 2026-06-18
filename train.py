@@ -14,6 +14,7 @@ from src.models import Model
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--out", default="runs/model")
+    p.add_argument("--ckpt", default=None)
     p.add_argument("--data", default=None)
     p.add_argument("--size", type=int, default=256)
     p.add_argument("--batch", type=int, default=2)
@@ -69,6 +70,14 @@ def unwrap(model):
     return model.module if hasattr(model, "module") else model
 
 
+def load_weights(model, path, device):
+    state = torch.load(path, map_location=device)
+    if isinstance(state, dict) and "model" in state:
+        state = state["model"]
+    state = {k.removeprefix("module."): v for k, v in state.items()}
+    model.load_state_dict(state)
+
+
 def main():
     args = parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -77,6 +86,8 @@ def main():
     train_loader = make_loader(args.data, "train", args.size, args.batch, args.limit, True)
     val_loader = make_loader(args.data, "test", args.size, 1, args.val_limit, False)
     model = Model(args.steps, True, args.base).to(device)
+    if args.ckpt:
+        load_weights(model, args.ckpt, device)
     ema_model = Model(args.steps, True, args.base).to(device)
     ema_model.load_state_dict(model.state_dict())
     ema_model.eval()
