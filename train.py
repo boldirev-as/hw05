@@ -24,6 +24,7 @@ def parse_args():
     p.add_argument("--ema", type=float, default=0.999)
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--val-limit", type=int, default=128)
+    p.add_argument("--no-tta", action="store_true")
     p.add_argument("--comet", action="store_true")
     p.add_argument("--project", default="hw05")
     p.add_argument("--workspace", default=None)
@@ -50,8 +51,8 @@ def save_result(args, best, best_epoch):
     with path.open("a", newline="") as f:
         w = csv.writer(f)
         if not exists:
-            w.writerow(["name", "size", "batch", "epochs", "steps", "lr", "l1", "ema", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
-        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.lr, args.l1, args.ema, args.limit, args.val_limit, best, best_epoch, args.out])
+            w.writerow(["name", "size", "batch", "epochs", "steps", "lr", "l1", "ema", "tta", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
+        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.lr, args.l1, args.ema, not args.no_tta, args.limit, args.val_limit, best, best_epoch, args.out])
 
 
 def update_ema(model, ema_model, decay):
@@ -88,9 +89,8 @@ def main():
         for batch in tqdm(train_loader):
             y = batch["lensless"].to(device)
             psf = batch["psf"].to(device)
-            label = batch["label"].to(device)
             target = batch["target"].to(device)
-            pred = model(y, psf, label)
+            pred = model(y, psf)
             loss = ((pred - target) ** 2).mean() + args.l1 * (pred - target).abs().mean()
             opt.zero_grad()
             loss.backward()
@@ -100,7 +100,7 @@ def main():
             if run:
                 run.log_metric("loss", loss.item(), step=step, epoch=epoch)
             step += 1
-        psnr = evaluate(ema_model if args.ema > 0 else model, val_loader, device)
+        psnr = evaluate(ema_model if args.ema > 0 else model, val_loader, device, not args.no_tta)
         if run:
             run.log_metric("psnr", psnr, step=step, epoch=epoch)
         if psnr > best:
@@ -120,15 +120,28 @@ def main():
 
 
 @torch.no_grad()
-def evaluate(model, loader, device):
+def predict(model, y, psf, tta):
+    pred = model(y, psf)
+    if not tta:
+        return pred
+    yh = torch.flip(y, (3,))
+    yv = torch.flip(y, (2,))
+    yhv = torch.flip(y, (2, 3))
+    ph = torch.flip(model(yh, psf), (3,))
+    pv = torch.flip(model(yv, psf), (2,))
+    phv = torch.flip(model(yhv, psf), (2, 3))
+    return (pred + ph + pv + phv) / 4
+
+
+@torch.no_grad()
+def evaluate(model, loader, device, tta):
     model.eval()
     vals = []
     for batch in loader:
         y = batch["lensless"].to(device)
         psf = batch["psf"].to(device)
-        label = batch["label"].to(device)
         target = batch["target"].to(device)
-        pred = model(y, psf, label)
+        pred = predict(model, y, psf, tta)
         mse = ((pred - target) ** 2).mean().clamp_min(1e-8)
         vals.append(float(10 * torch.log10(1 / mse)))
     return sum(vals) / len(vals)

@@ -6,7 +6,8 @@
 | unet384 | `--epochs 50 --batch 2 --size 384 --lr 2e-4` | 12.35 | bad, do not repeat |
 | unet256_lr2e4 | `--epochs 50 --batch 8 --size 256 --lr 2e-4` | 13.1 | not better |
 | residual_gn_aug | `--epochs 50 --batch 8 --size 256 --lr 3e-4` | 13.75 | best so far |
+| mask_conditioned | `--epochs 60 --batch 8 --size 256 --lr 3e-4 --l1 0.1 --ema 0.999` | 12.25 | bad, do not repeat |
 
 Next:
 
-`--epochs 60 --batch 8 --size 256 --lr 3e-4 --l1 0.1 --ema 0.999 --name mask_conditioned`
+`--epochs 70 --batch 8 --size 256 --lr 3e-4 --l1 0.0 --ema 0.999 --name mse_tta`

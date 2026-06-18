@@ -21,6 +21,7 @@ def main():
     p.add_argument("--out", default="recon")
     p.add_argument("--size", type=int, default=256)
     p.add_argument("--steps", type=int, default=20)
+    p.add_argument("--no-tta", action="store_true")
     args = p.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     out = Path(args.out)
@@ -31,8 +32,23 @@ def main():
     loader = make_loader(args.data, "test", args.size, 1, None, False)
     with torch.no_grad():
         for batch in tqdm(loader):
-            pred = model(batch["lensless"].to(device), batch["psf"].to(device), batch["label"].to(device))
+            y = batch["lensless"].to(device)
+            psf = batch["psf"].to(device)
+            pred = predict(model, y, psf, not args.no_tta)
             save(pred, out / f"{batch['id'][0]}.png")
+
+
+def predict(model, y, psf, tta):
+    pred = model(y, psf)
+    if not tta:
+        return pred
+    yh = torch.flip(y, (3,))
+    yv = torch.flip(y, (2,))
+    yhv = torch.flip(y, (2, 3))
+    ph = torch.flip(model(yh, psf), (3,))
+    pv = torch.flip(model(yv, psf), (2,))
+    phv = torch.flip(model(yhv, psf), (2, 3))
+    return (pred + ph + pv + phv) / 4
 
 
 if __name__ == "__main__":
