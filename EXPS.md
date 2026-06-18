@@ -11,4 +11,4 @@
 
 Next:
 
-`--epochs 70 --batch 4 --size 256 --base 64 --lr 3e-4 --l1 0.1 --ema 0.999 --name base64_resblocks`
+`--epochs 70 --batch 8 --size 256 --base 64 --lr 3e-4 --l1 0.1 --ema 0.999 --dp --name base64_resblocks_dp`
