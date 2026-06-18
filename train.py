@@ -19,6 +19,7 @@ def parse_args():
     p.add_argument("--batch", type=int, default=2)
     p.add_argument("--epochs", type=int, default=5)
     p.add_argument("--steps", type=int, default=20)
+    p.add_argument("--base", type=int, default=48)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--l1", type=float, default=0.1)
     p.add_argument("--ema", type=float, default=0.999)
@@ -51,8 +52,8 @@ def save_result(args, best, best_epoch):
     with path.open("a", newline="") as f:
         w = csv.writer(f)
         if not exists:
-            w.writerow(["name", "size", "batch", "epochs", "steps", "lr", "l1", "ema", "tta", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
-        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.lr, args.l1, args.ema, not args.no_tta, args.limit, args.val_limit, best, best_epoch, args.out])
+            w.writerow(["name", "size", "batch", "epochs", "steps", "base", "lr", "l1", "ema", "tta", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
+        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.base, args.lr, args.l1, args.ema, not args.no_tta, args.limit, args.val_limit, best, best_epoch, args.out])
 
 
 def update_ema(model, ema_model, decay):
@@ -70,8 +71,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     train_loader = make_loader(args.data, "train", args.size, args.batch, args.limit, True)
     val_loader = make_loader(args.data, "test", args.size, 1, args.val_limit, False)
-    model = Model(args.steps, True).to(device)
-    ema_model = Model(args.steps, True).to(device)
+    model = Model(args.steps, True, args.base).to(device)
+    ema_model = Model(args.steps, True, args.base).to(device)
     ema_model.load_state_dict(model.state_dict())
     ema_model.eval()
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
