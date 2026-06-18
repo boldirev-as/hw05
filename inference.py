@@ -31,7 +31,7 @@ def main():
     loader = make_loader(args.data, "test", args.size, 1, None, False)
     with torch.no_grad():
         for batch in tqdm(loader):
-            pred = model(batch["lensless"].to(device), batch["psf"].to(device))
+            pred = model(batch["lensless"].to(device), batch["psf"].to(device), batch["label"].to(device))
             save(pred, out / f"{batch['id'][0]}.png")
 
 

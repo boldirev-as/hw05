@@ -23,7 +23,7 @@ class Model(nn.Module):
     def __init__(self, steps=20, learned=True):
         super().__init__()
         c = 48
-        self.e1 = Block(3, c)
+        self.e1 = Block(13, c)
         self.e2 = Block(c, c * 2)
         self.e3 = Block(c * 2, c * 4)
         self.mid = Block(c * 4, c * 8)
@@ -34,8 +34,13 @@ class Model(nn.Module):
         nn.init.zeros_(self.out.weight)
         nn.init.zeros_(self.out.bias)
 
-    def forward(self, y, psf):
-        x1 = self.e1(y)
+    def forward(self, y, psf, label=None):
+        if label is None:
+            label = torch.zeros(y.shape[0], dtype=torch.long, device=y.device)
+        label = label.to(y.device).long().clamp(0, 9)
+        m = F.one_hot(label, 10).float()[:, :, None, None].expand(-1, -1, y.shape[-2], y.shape[-1])
+        x = torch.cat([y, m], 1)
+        x1 = self.e1(x)
         x2 = self.e2(F.max_pool2d(x1, 2))
         x3 = self.e3(F.max_pool2d(x2, 2))
         x = self.mid(F.max_pool2d(x3, 2))
