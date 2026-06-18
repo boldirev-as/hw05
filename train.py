@@ -20,6 +20,8 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=5)
     p.add_argument("--steps", type=int, default=20)
     p.add_argument("--lr", type=float, default=1e-4)
+    p.add_argument("--l1", type=float, default=0.1)
+    p.add_argument("--ema", type=float, default=0.999)
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--val-limit", type=int, default=128)
     p.add_argument("--comet", action="store_true")
@@ -48,8 +50,16 @@ def save_result(args, best, best_epoch):
     with path.open("a", newline="") as f:
         w = csv.writer(f)
         if not exists:
-            w.writerow(["name", "size", "batch", "epochs", "steps", "lr", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
-        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.lr, args.limit, args.val_limit, best, best_epoch, args.out])
+            w.writerow(["name", "size", "batch", "epochs", "steps", "lr", "l1", "ema", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
+        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.lr, args.l1, args.ema, args.limit, args.val_limit, best, best_epoch, args.out])
+
+
+def update_ema(model, ema_model, decay):
+    with torch.no_grad():
+        for p, q in zip(model.parameters(), ema_model.parameters()):
+            q.mul_(decay).add_(p, alpha=1 - decay)
+        for p, q in zip(model.buffers(), ema_model.buffers()):
+            q.copy_(p)
 
 
 def main():
@@ -60,6 +70,9 @@ def main():
     train_loader = make_loader(args.data, "train", args.size, args.batch, args.limit, True)
     val_loader = make_loader(args.data, "test", args.size, 1, args.val_limit, False)
     model = Model(args.steps, True).to(device)
+    ema_model = Model(args.steps, True).to(device)
+    ema_model.load_state_dict(model.state_dict())
+    ema_model.eval()
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, args.epochs)
     run = Experiment(api_key=comet_key(), project_name=args.project, workspace=args.workspace) if args.comet else None
@@ -77,20 +90,22 @@ def main():
             psf = batch["psf"].to(device)
             target = batch["target"].to(device)
             pred = model(y, psf)
-            loss = (pred - target).abs().mean() + ((pred - target) ** 2).mean()
+            loss = ((pred - target) ** 2).mean() + args.l1 * (pred - target).abs().mean()
             opt.zero_grad()
             loss.backward()
             opt.step()
+            if args.ema > 0:
+                update_ema(model, ema_model, args.ema)
             if run:
                 run.log_metric("loss", loss.item(), step=step, epoch=epoch)
             step += 1
-        psnr = evaluate(model, val_loader, device)
+        psnr = evaluate(ema_model if args.ema > 0 else model, val_loader, device)
         if run:
             run.log_metric("psnr", psnr, step=step, epoch=epoch)
         if psnr > best:
             best = psnr
             best_epoch = epoch
-            torch.save(model.state_dict(), out / "best.pt")
+            torch.save((ema_model if args.ema > 0 else model).state_dict(), out / "best.pt")
             if run:
                 run.log_model("best", str(out / "best.pt"))
         torch.save(model.state_dict(), out / "last.pt")

@@ -5,7 +5,8 @@
 | unet_rotate_256 | `--epochs 30 --batch 8 --size 256 --lr 3e-4` | 13.2 | best so far |
 | unet384 | `--epochs 50 --batch 2 --size 384 --lr 2e-4` | 12.35 | bad, do not repeat |
 | unet256_lr2e4 | `--epochs 50 --batch 8 --size 256 --lr 2e-4` | 13.1 | not better |
+| residual_gn_aug | `--epochs 50 --batch 8 --size 256 --lr 3e-4` | 13.75 | best so far |
 
 Next:
 
-`--epochs 50 --batch 8 --size 256 --lr 3e-4 --name residual_gn_aug`
+`--epochs 60 --batch 8 --size 256 --lr 3e-4 --l1 0.1 --ema 0.999 --name ema_mse`
