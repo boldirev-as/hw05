@@ -6,6 +6,7 @@ import torch.nn.functional as F
 class Block(nn.Module):
     def __init__(self, a, b):
         super().__init__()
+        self.skip = nn.Identity() if a == b else nn.Conv2d(a, b, 1)
         self.net = nn.Sequential(
             nn.Conv2d(a, b, 3, padding=1),
             nn.GroupNorm(8, b),
@@ -16,13 +17,13 @@ class Block(nn.Module):
         )
 
     def forward(self, x):
-        return self.net(x)
+        return self.net(x) + self.skip(x)
 
 
 class Model(nn.Module):
-    def __init__(self, steps=20, learned=True):
+    def __init__(self, steps=20, learned=True, base=48):
         super().__init__()
-        c = 48
+        c = base
         self.e1 = Block(3, c)
         self.e2 = Block(c, c * 2)
         self.e3 = Block(c * 2, c * 4)
