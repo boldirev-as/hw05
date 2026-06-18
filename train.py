@@ -26,6 +26,7 @@ def parse_args():
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--val-limit", type=int, default=128)
     p.add_argument("--no-tta", action="store_true")
+    p.add_argument("--dp", action="store_true")
     p.add_argument("--comet", action="store_true")
     p.add_argument("--project", default="hw05")
     p.add_argument("--workspace", default=None)
@@ -52,8 +53,8 @@ def save_result(args, best, best_epoch):
     with path.open("a", newline="") as f:
         w = csv.writer(f)
         if not exists:
-            w.writerow(["name", "size", "batch", "epochs", "steps", "base", "lr", "l1", "ema", "tta", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
-        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.base, args.lr, args.l1, args.ema, not args.no_tta, args.limit, args.val_limit, best, best_epoch, args.out])
+            w.writerow(["name", "size", "batch", "epochs", "steps", "base", "lr", "l1", "ema", "tta", "dp", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
+        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.base, args.lr, args.l1, args.ema, not args.no_tta, args.dp, args.limit, args.val_limit, best, best_epoch, args.out])
 
 
 def update_ema(model, ema_model, decay):
@@ -62,6 +63,10 @@ def update_ema(model, ema_model, decay):
             q.mul_(decay).add_(p, alpha=1 - decay)
         for p, q in zip(model.buffers(), ema_model.buffers()):
             q.copy_(p)
+
+
+def unwrap(model):
+    return model.module if hasattr(model, "module") else model
 
 
 def main():
@@ -75,6 +80,9 @@ def main():
     ema_model = Model(args.steps, True, args.base).to(device)
     ema_model.load_state_dict(model.state_dict())
     ema_model.eval()
+    if args.dp and torch.cuda.device_count() > 1:
+        model = torch.nn.DataParallel(model)
+        ema_model = torch.nn.DataParallel(ema_model)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, args.epochs)
     run = Experiment(api_key=comet_key(), project_name=args.project, workspace=args.workspace) if args.comet else None
@@ -107,10 +115,10 @@ def main():
         if psnr > best:
             best = psnr
             best_epoch = epoch
-            torch.save((ema_model if args.ema > 0 else model).state_dict(), out / "best.pt")
+            torch.save(unwrap(ema_model if args.ema > 0 else model).state_dict(), out / "best.pt")
             if run:
                 run.log_model("best", str(out / "best.pt"))
-        torch.save(model.state_dict(), out / "last.pt")
+        torch.save(unwrap(model).state_dict(), out / "last.pt")
         print(epoch, psnr)
         scheduler.step()
     save_result(args, best, best_epoch)
