@@ -69,7 +69,7 @@ class CustomDirDataset(Dataset):
             target = image_to_tensor(target_path, self.size)
         if self.train:
             lensless, target = augment(lensless, target)
-        return {"id": name, "lensless": lensless, "psf": psf, "target": target}
+        return {"id": name, "lensless": lensless, "psf": psf, "target": target, "label": 0}
 
 
 class HFDataset(Dataset):
@@ -94,6 +94,7 @@ class HFDataset(Dataset):
         lensless = self.pick(row, ["lensless", "lensless_image", "measurement"])
         target = self.pick(row, ["lensed", "image", "original"])
         psf = self.pick(row, ["psf", "mask", "masks"])
+        label = self.pick(row, ["mask_label", "label"])
         if psf is None:
             psf = default_psf(self.size)
         lensless = image_to_tensor(lensless, self.size, True)
@@ -105,6 +106,7 @@ class HFDataset(Dataset):
             "lensless": lensless,
             "target": target,
             "psf": psf if torch.is_tensor(psf) else psf_to_tensor(psf, self.size),
+            "label": 0 if label is None else int(label),
         }
 
 

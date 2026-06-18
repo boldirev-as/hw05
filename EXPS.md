@@ -9,4 +9,4 @@
 
 Next:
 
-`--epochs 60 --batch 8 --size 256 --lr 3e-4 --l1 0.1 --ema 0.999 --name ema_mse`
+`--epochs 60 --batch 8 --size 256 --lr 3e-4 --l1 0.1 --ema 0.999 --name mask_conditioned`

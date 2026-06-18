@@ -88,8 +88,9 @@ def main():
         for batch in tqdm(train_loader):
             y = batch["lensless"].to(device)
             psf = batch["psf"].to(device)
+            label = batch["label"].to(device)
             target = batch["target"].to(device)
-            pred = model(y, psf)
+            pred = model(y, psf, label)
             loss = ((pred - target) ** 2).mean() + args.l1 * (pred - target).abs().mean()
             opt.zero_grad()
             loss.backward()
@@ -125,8 +126,9 @@ def evaluate(model, loader, device):
     for batch in loader:
         y = batch["lensless"].to(device)
         psf = batch["psf"].to(device)
+        label = batch["label"].to(device)
         target = batch["target"].to(device)
-        pred = model(y, psf)
+        pred = model(y, psf, label)
         mse = ((pred - target) ** 2).mean().clamp_min(1e-8)
         vals.append(float(10 * torch.log10(1 / mse)))
     return sum(vals) / len(vals)
