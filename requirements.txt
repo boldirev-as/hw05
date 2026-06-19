@@ -7,3 +7,5 @@ tqdm
 comet_ml
 torchmetrics
 lpips
+gdown
+matplotlib

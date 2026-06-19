@@ -1,0 +1,13 @@
+out: runs/leadmm20
+model: leadmm
+steps: 20
+epochs: 30
+batch: 8
+size: 256
+base: 48
+lr: 0.0003
+l1: 0.1
+ema: 0.999
+val_limit: 0
+project: hw05
+name: leadmm20

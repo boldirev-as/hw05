@@ -5,8 +5,9 @@ import torch
 from PIL import Image
 from tqdm import tqdm
 
+from src.config import read_config
 from src.datasets import make_loader
-from src.models import Model
+from src.models import build_model
 
 
 def save(x, path):
@@ -15,19 +16,24 @@ def save(x, path):
 
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--ckpt", required=True)
-    p.add_argument("--data", required=True)
+    base = argparse.ArgumentParser(add_help=False)
+    base.add_argument("--config", default=None)
+    known, _ = base.parse_known_args()
+    p = argparse.ArgumentParser(parents=[base])
+    p.add_argument("--ckpt", default="best.pt")
+    p.add_argument("--data", default=None)
     p.add_argument("--out", default="recon")
     p.add_argument("--size", type=int, default=256)
-    p.add_argument("--steps", type=int, default=20)
+    p.add_argument("--steps", type=int, default=5)
+    p.add_argument("--model", default="modular")
     p.add_argument("--base", type=int, default=48)
     p.add_argument("--no-tta", action="store_true")
+    p.set_defaults(**read_config(known.config))
     args = p.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    model = Model(args.steps, True, args.base).to(device)
+    model = build_model(args.model, args.steps, args.base).to(device)
     model.load_state_dict(torch.load(args.ckpt, map_location=device))
     model.eval()
     loader = make_loader(args.data, "test", args.size, 1, None, False)

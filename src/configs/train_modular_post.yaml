@@ -1,0 +1,13 @@
+out: runs/modular_post
+model: modular_post
+steps: 5
+epochs: 60
+batch: 8
+size: 256
+base: 64
+lr: 0.0003
+l1: 0.1
+ema: 0.999
+val_limit: 0
+project: hw05
+name: modular_post5

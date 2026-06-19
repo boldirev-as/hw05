@@ -1,0 +1,7 @@
+data: /path/to/data
+ckpt: best.pt
+out: recon
+model: modular
+steps: 5
+size: 256
+base: 64

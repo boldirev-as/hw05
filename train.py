@@ -7,19 +7,24 @@ from comet_ml import Experiment
 import torch
 from tqdm import tqdm
 
+from src.config import read_config
 from src.datasets import make_loader
-from src.models import Model
+from src.models import build_model
 
 
 def parse_args():
-    p = argparse.ArgumentParser()
+    base = argparse.ArgumentParser(add_help=False)
+    base.add_argument("--config", default=None)
+    known, _ = base.parse_known_args()
+    p = argparse.ArgumentParser(parents=[base])
     p.add_argument("--out", default="runs/model")
     p.add_argument("--ckpt", default=None)
     p.add_argument("--data", default=None)
     p.add_argument("--size", type=int, default=256)
     p.add_argument("--batch", type=int, default=2)
     p.add_argument("--epochs", type=int, default=5)
-    p.add_argument("--steps", type=int, default=20)
+    p.add_argument("--steps", type=int, default=5)
+    p.add_argument("--model", default="modular")
     p.add_argument("--base", type=int, default=48)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--l1", type=float, default=0.1)
@@ -32,6 +37,7 @@ def parse_args():
     p.add_argument("--project", default="hw05")
     p.add_argument("--workspace", default=None)
     p.add_argument("--name", default=None)
+    p.set_defaults(**read_config(known.config))
     return p.parse_args()
 
 
@@ -54,8 +60,8 @@ def save_result(args, best, best_epoch):
     with path.open("a", newline="") as f:
         w = csv.writer(f)
         if not exists:
-            w.writerow(["name", "size", "batch", "epochs", "steps", "base", "lr", "l1", "ema", "tta", "dp", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
-        w.writerow([args.name, args.size, args.batch, args.epochs, args.steps, args.base, args.lr, args.l1, args.ema, not args.no_tta, args.dp, args.limit, args.val_limit, best, best_epoch, args.out])
+            w.writerow(["name", "model", "size", "batch", "epochs", "steps", "base", "lr", "l1", "ema", "tta", "dp", "limit", "val_limit", "best_psnr", "best_epoch", "out"])
+        w.writerow([args.name, args.model, args.size, args.batch, args.epochs, args.steps, args.base, args.lr, args.l1, args.ema, not args.no_tta, args.dp, args.limit, args.val_limit, best, best_epoch, args.out])
 
 
 def update_ema(model, ema_model, decay):
@@ -75,7 +81,11 @@ def load_weights(model, path, device):
     if isinstance(state, dict) and "model" in state:
         state = state["model"]
     state = {k.removeprefix("module."): v for k, v in state.items()}
-    model.load_state_dict(state)
+    own = model.state_dict()
+    ok = {k: v for k, v in state.items() if k in own and own[k].shape == v.shape}
+    own.update(ok)
+    model.load_state_dict(own)
+    print("loaded", len(ok), "of", len(own), "tensors")
 
 
 def main():
@@ -84,11 +94,12 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     train_loader = make_loader(args.data, "train", args.size, args.batch, args.limit, True)
-    val_loader = make_loader(args.data, "test", args.size, 1, args.val_limit, False)
-    model = Model(args.steps, True, args.base).to(device)
+    val_limit = None if args.val_limit is not None and args.val_limit <= 0 else args.val_limit
+    val_loader = make_loader(args.data, "test", args.size, 1, val_limit, False)
+    model = build_model(args.model, args.steps, args.base).to(device)
     if args.ckpt:
         load_weights(model, args.ckpt, device)
-    ema_model = Model(args.steps, True, args.base).to(device)
+    ema_model = build_model(args.model, args.steps, args.base).to(device)
     ema_model.load_state_dict(model.state_dict())
     ema_model.eval()
     if args.dp and torch.cuda.device_count() > 1:

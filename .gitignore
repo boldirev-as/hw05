@@ -1,1 +1,8 @@
 EXPS.md
+runs/
+logs/
+tmp/
+recon/
+*.pt
+__pycache__/
+.ipynb_checkpoints/

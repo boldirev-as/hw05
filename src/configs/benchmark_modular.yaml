@@ -1,0 +1,6 @@
+ckpt: best.pt
+model: modular
+steps: 5
+size: 256
+base: 64
+runs: 100

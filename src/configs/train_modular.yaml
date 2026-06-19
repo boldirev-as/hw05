@@ -1,0 +1,13 @@
+out: runs/modular
+model: modular
+steps: 5
+epochs: 80
+batch: 4
+size: 256
+base: 64
+lr: 0.0002
+l1: 0.1
+ema: 0.999
+val_limit: 0
+project: hw05
+name: modular_prepost5
