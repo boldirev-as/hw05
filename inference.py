@@ -28,6 +28,7 @@ def main():
     p.add_argument("--model", default="modular")
     p.add_argument("--base", type=int, default=48)
     p.add_argument("--no-tta", action="store_true")
+    p.add_argument("--identity-psf", action="store_true")
     p.set_defaults(**read_config(known.config))
     args = p.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -41,6 +42,9 @@ def main():
         for batch in tqdm(loader):
             y = batch["lensless"].to(device)
             psf = batch["psf"].to(device)
+            if args.identity_psf:
+                psf = torch.zeros_like(y)
+                psf[:, :, args.size // 2, args.size // 2] = 1
             pred = predict(model, y, psf, not args.no_tta)
             save(pred, out / f"{batch['id'][0]}.png")
 
